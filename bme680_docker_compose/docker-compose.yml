@@ -1,0 +1,72 @@
+version: "3.7"
+
+services:
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - 9090:9090
+    networks:
+      - backnet
+      - frontnet
+      - proxy
+    restart: unless-stopped
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prom_data:/prometheus
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+    networks:
+      - frontnet
+      - proxy
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+      - GF_FEATURE_TOGGLES_ENABLE=publicDashboards
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+      - ./grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+  bme:
+    #image: dubhar/bme680_exporter:latest
+    image: greatehop/bme680_exporter:0.0.7
+    container_name: bme
+    ports:
+      - 9100:9100
+    networks:
+      - backnet
+      - proxy
+    devices:
+      - "/dev/i2c-1:/dev/i2c-1"
+    environment:
+      LOCATION: "Garage"
+    restart: always
+  nginx:
+    image: nginx:1-alpine
+    container_name: nginx
+    ports:
+      - 80:80
+    networks:
+      - proxy
+    volumes:
+      - ./nginx/:/usr/share/nginx/html
+    restart: always
+    depends_on:
+      - bme
+      - grafana
+      - prometheus
+
+volumes:
+  prom_data:
+    external: true
+
+networks:
+  backnet:
+  frontnet:
+  proxy:
